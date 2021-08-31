@@ -4,6 +4,7 @@ import {
 
 import {
 	IDataObject,
+	INode,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -95,7 +96,6 @@ export class ItemLists implements INodeType {
 				type: 'string',
 				default: '',
 				required: true,
-				description: 'The field to break out into separate items',
 				displayOptions: {
 					show: {
 						resource: [
@@ -106,7 +106,43 @@ export class ItemLists implements INodeType {
 						],
 					},
 				},
+				description: 'The field to break out into separate items',
 			},
+			// {
+			// 	displayName: 'Fields To Split Out',
+			// 	name: 'fieldsToSplitOut',
+			// 	type: 'fixedCollection',
+			// 	typeOptions: {
+			// 		multipleValues: true,
+			// 	},
+			// 	placeholder: 'Add Field To Split Out',
+			// 	default: {},
+			// 	displayOptions: {
+			// 		show: {
+			// 			resource: [
+			// 				'itemList',
+			// 			],
+			// 			operation: [
+			// 				'splitOutItems',
+			// 			],
+			// 		},
+			// 	},
+			// 	options: [
+			// 		{
+			// 			displayName: 'Field To Split Out',
+			// 			name: 'fieldToSplitOut',
+			// 			values: [
+			// 				{
+			// 					displayName: 'Field To Split Out',
+			// 					name: 'fieldToSplitOut',
+			// 					type: 'string',
+			// 					default: '',
+			// 					description: 'The field to break out into separate items',
+			// 				},
+			// 			],
+			// 		},
+			// 	],
+			// },
 			{
 				displayName: 'Include',
 				name: 'include',
@@ -567,94 +603,99 @@ return 0;`,
 
 				for (let i = 0; i < length; i++) {
 					const fieldToSplitOut = this.getNodeParameter('fieldToSplitOut', i) as string;
-
+					//const fieldsToSplitOut = this.getNodeParameter('fieldsToSplitOut.fieldToSplitOut', i) as [{ fieldToSplitOut: string } ];
 					const allowDotNotation = this.getNodeParameter('options.allowDotNotation', 0, false) as boolean;
 					const destinationFieldName = this.getNodeParameter('options.destinationFieldName', i, '') as string;
 					const include = this.getNodeParameter('include', i) as string;
-					let arrayToSplit;
-					if (allowDotNotation) {
-						arrayToSplit = get(items[i].json, fieldToSplitOut);
-					} else {
-						arrayToSplit = items[i].json[fieldToSplitOut as string];
-					}
-					console.log(arrayToSplit);
+					
+					//console.log(fieldsToSplitOut);
 
-					if (arrayToSplit === undefined) {
-						if (fieldToSplitOut.includes('.') && allowDotNotation === false) {
-							throw new NodeOperationError(this.getNode(), `If you're trying to use a nested field, make sure you turn on 'allow dot notation' in the node options`);
+					
+					//for (const { fieldToSplitOut } of fieldsToSplitOut) {
+						let arrayToSplit;
+						if (allowDotNotation) {
+							arrayToSplit = get(items[i].json, fieldToSplitOut);
 						} else {
-							throw new NodeOperationError(this.getNode(), `Couldn't find the field ${fieldToSplitOut} in the input data`);
+							arrayToSplit = items[i].json[fieldToSplitOut as string];
 						}
-					}
 
-					if (!Array.isArray(arrayToSplit)) {
-						throw new NodeOperationError(this.getNode(), `The provided field "${fieldToSplitOut}" is not an array`);
-					} else {
+						if (arrayToSplit === undefined) {
+							if (fieldToSplitOut.includes('.') && allowDotNotation === false) {
+								throw new NodeOperationError(this.getNode(), `Couldn't find the field ${fieldToSplitOut} in the input data`, { description: `If you're trying to use a nested field, make sure you turn on 'allow dot notation' in the node options` });
+							} else {
+								throw new NodeOperationError(this.getNode(), `Couldn't find the field ${fieldToSplitOut} in the input data`);
+							}
+						}
 
-						for (const element of arrayToSplit) {
+						if (!Array.isArray(arrayToSplit)) {
+							throw new NodeOperationError(this.getNode(), `The provided field "${fieldToSplitOut}" is not an array`);
+						} else {
 
-							let newItem = {};
 
-							// let newItem = {
-							// 	...(typeof element === 'object') ? element : { [fieldToSplitOut as string]: element },
-							// };
+							for (const element of arrayToSplit) {
+								let newItem = {};
 
-							if (include === 'selectedOtherFields') {
+								// let newItem = {
+								// 	...(typeof element === 'object') ? element : { [fieldToSplitOut as string]: element },
+								// };
 
-								const fieldsToInclude = (this.getNodeParameter('fieldsToInclude', i) as string).split(',');
+								if (include === 'selectedOtherFields') {
 
-								//if array the array to split is withim an object, and has other properties
-								if (fieldToSplitOut.includes('.') && allowDotNotation) {
-									fieldsToInclude.push(fieldToSplitOut.split('.')[0]);
+									const fieldsToInclude = (this.getNodeParameter('fieldsToInclude', i) as string).split(',');
+
+									//if array the array to split is withim an object, and has other properties
+									if (fieldToSplitOut.includes('.') && allowDotNotation) {
+										fieldsToInclude.push(fieldToSplitOut.split('.')[0]);
+									}
+
+									newItem = {
+										...fieldsToInclude.reduce((prev, field) => {
+											if (field === fieldToSplitOut) {
+												return prev;
+											}
+											let value;
+											if (allowDotNotation) {
+												value = get(items[i].json, field);
+											} else {
+												value = items[i].json[field as string];
+											}
+											prev = { ...prev, [field as string]: value, };
+											return prev;
+										}, {}),
+									};
+
+									unset(newItem, fieldToSplitOut);
+
+								} else if (include === 'allOtherFields') {
+
+									const keys = Object.keys(items[i].json);
+
+									newItem = {
+										...keys.reduce((prev, field) => {
+											let value;
+											if (allowDotNotation) {
+												value = get(items[i].json, field);
+											} else {
+												value = items[i].json[field as string];
+											}
+											prev = { ...prev, [field as string]: value, };
+											return prev;
+										}, {}),
+									};
+
+									unset(newItem, fieldToSplitOut);
 								}
 
-								newItem = {
-									...fieldsToInclude.reduce((prev, field) => {
-										if (field === fieldToSplitOut) {
-											return prev;
-										}
-										let value;
-										if (allowDotNotation) {
-											value = get(items[i].json, field);
-										} else {
-											value = items[i].json[field as string];
-										}
-										prev = { ...prev, [field as string]: value, };
-										return prev;
-									}, {}),
-								};
+								if (typeof element === 'object' && include === 'noOtherFields' && destinationFieldName === '') {
+									newItem = { ...newItem, ...element };
+								} else {
+									newItem = { ...newItem, [destinationFieldName as string || fieldToSplitOut as string]: element };
+								}
 
-								unset(newItem, fieldToSplitOut);
-
-							} else if (include === 'allOtherFields') {
-
-								const keys = Object.keys(items[i].json);
-
-								newItem = {
-									...keys.reduce((prev, field) => {
-										let value;
-										if (allowDotNotation) {
-											value = get(items[i].json, field);
-										} else {
-											value = items[i].json[field as string];
-										}
-										prev = { ...prev, [field as string]: value, };
-										return prev;
-									}, {}),
-								};
-
-								unset(newItem, fieldToSplitOut);
+								returnData.push({ json: newItem });
 							}
-
-							if (typeof element === 'object' && include === 'noOtherFields' && destinationFieldName === '') {
-								newItem = { ...newItem, ...element };
-							} else {
-								newItem = { ...newItem, [destinationFieldName as string || fieldToSplitOut as string]: element };
-							}
-
-							returnData.push({ json: newItem });
 						}
-					}
+					//}
 				}
 
 				return this.prepareOutputData(returnData);
@@ -677,7 +718,7 @@ return 0;`,
 
 				for (const { fieldToAggregate, outputFieldName } of fieldsToAggregate) {
 					if (outputFieldName !== '' && outputFields.includes(outputFieldName)) {
-						throw new NodeOperationError(this.getNode(), `The ${outputFieldName} output field is used more than once`);
+						throw new NodeOperationError(this.getNode(), `The ${outputFieldName} output field is used more than once`, { description: `Please make sure each output field name is unique` });
 					} else {
 						outputFields.push(outputFieldName);
 					}
@@ -726,7 +767,6 @@ return 0;`,
 				const allowDotNotation = this.getNodeParameter('options.allowDotNotation', 0, false) as boolean;
 				let keys = Object.keys(items[0].json);
 
-				//TODO check if this work with . notation
 				for (const item of items) {
 					for (const key of Object.keys(item.json)) {
 						if (!keys.includes(key)) {
@@ -786,7 +826,7 @@ return 0;`,
 				const removedIndexes: number[] = [];
 				let temp = newItems[0];
 				for (let index = 1; index < newItems.length; index++) {
-					if (compareItems(newItems[index], temp, keys, allowDotNotation)) {
+					if (compareItems(newItems[index], temp, keys, allowDotNotation, this.getNode())) {
 						removedIndexes.push(newItems[index].json.INDEX as unknown as number);
 					} else {
 						temp = newItems[index];
@@ -886,7 +926,7 @@ return 0;`,
 	}
 }
 
-const compareItems = (obj: INodeExecutionData, obj2: INodeExecutionData, keys: string[], allowDotNotation: boolean) => {
+const compareItems = (obj: INodeExecutionData, obj2: INodeExecutionData, keys: string[], allowDotNotation: boolean, node: INode) => {
 	let result = true;
 	const keys1 = allowDotNotation ? Object.keys(flattenKeys(obj.json)) : Object.keys(obj.json);
 	const keys2 = allowDotNotation ? Object.keys(flattenKeys(obj2.json)) : Object.keys(obj2.json);
@@ -894,9 +934,9 @@ const compareItems = (obj: INodeExecutionData, obj2: INodeExecutionData, keys: s
 
 		if (!keys1.includes(key) || !keys2.includes(key)) {
 			if (allowDotNotation === false && key.includes('.')) {
-				throw new Error(`If you're trying to use a nested field, make sure you turn on 'allow dot notation' in the node options`);
+				throw new NodeOperationError(node, `${key}' field is missing from some input items`, { description: `If you're trying to use a nested field, make sure you turn on 'allow dot notation' in the node options` });
 			} else {
-				throw new Error(`${key}' field is missing from some input items`);
+				throw new NodeOperationError(node, `${key}' field is missing from some input items`);
 			}
 		}
 		if (allowDotNotation) {
