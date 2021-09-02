@@ -537,6 +537,35 @@ return 0;`,
 							'itemList',
 						],
 						operation: [
+							'sort',
+						],
+						type: [
+							'simple',
+						],
+					},
+				},
+				options: [
+					{
+						displayName: 'Allow Dot Notation',
+						name: 'allowDotNotation',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to allow referencing child fields using `parent.child` in the field name',
+					},
+				],
+			},
+			{
+				displayName: 'Options',
+				name: 'options',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: [
+							'itemList',
+						],
+						operation: [
 							'splitOutItems',
 							'aggregateItems',
 						],
@@ -854,6 +883,7 @@ return 0;`,
 
 				let newItems = [...items];
 				const type = this.getNodeParameter('type', 0) as string;
+				const allowDotNotation = this.getNodeParameter('options.allowDotNotation', 0, false) as boolean;
 
 				if (type === 'simple') {
 
@@ -870,7 +900,11 @@ return 0;`,
 					for (const { fieldName } of sortFields) {
 						let found = false;
 						for (const item of items) {
-							if (item.json.hasOwnProperty(fieldName)) {
+							if (allowDotNotation) {
+								if (get(item.json, fieldName) !== undefined) {
+									found = true;
+								}
+ 							} else if (item.json.hasOwnProperty(fieldName)) {
 								found = true;
 							}
 						}
@@ -883,11 +917,21 @@ return 0;`,
 
 					newItems.sort((a, b) => {
 						let result = 0;
-
 						for (const field of sortFieldsWithDirection) {
-							const equal = isEqual(a.json[field.name as string], b.json[field.name as string]);
+							let equal;
+							if (allowDotNotation) {
+								equal = isEqual(get(a.json, field.name), get(b.json, field.name));
+							} else {
+								equal = isEqual(a.json[field.name as string], b.json[field.name as string]);
+							}
+
 							if (!equal) {
-								const lessThan = lt(a.json[field.name as string], b.json[field.name as string]);
+								let lessThan;
+								if (allowDotNotation) {
+									lessThan = lt(get(a.json, field.name), get(b.json, field.name));
+								} else {
+									lessThan = lt(a.json[field.name], b.json[field.name]);
+								}
 								if (lessThan) {
 									result = -1 * field.dir;
 								} else {
