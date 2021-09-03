@@ -108,41 +108,6 @@ export class ItemLists implements INodeType {
 				},
 				description: 'The field to break out into separate items',
 			},
-			// {
-			// 	displayName: 'Fields To Split Out',
-			// 	name: 'fieldsToSplitOut',
-			// 	type: 'fixedCollection',
-			// 	typeOptions: {
-			// 		multipleValues: true,
-			// 	},
-			// 	placeholder: 'Add Field To Split Out',
-			// 	default: {},
-			// 	displayOptions: {
-			// 		show: {
-			// 			resource: [
-			// 				'itemList',
-			// 			],
-			// 			operation: [
-			// 				'splitOutItems',
-			// 			],
-			// 		},
-			// 	},
-			// 	options: [
-			// 		{
-			// 			displayName: 'Field To Split Out',
-			// 			name: 'fieldToSplitOut',
-			// 			values: [
-			// 				{
-			// 					displayName: 'Field To Split Out',
-			// 					name: 'fieldToSplitOut',
-			// 					type: 'string',
-			// 					default: '',
-			// 					description: 'The field to break out into separate items',
-			// 				},
-			// 			],
-			// 		},
-			// 	],
-			// },
 			{
 				displayName: 'Include',
 				name: 'include',
@@ -178,8 +143,11 @@ export class ItemLists implements INodeType {
 				displayName: 'Fields To Include',
 				name: 'fieldsToInclude',
 				type: 'string',
-				default: '',
-				description: 'A list of input field names to copy over to the new items, separated by commas',
+				typeOptions: {
+					multipleValues: true,
+				},
+				default: [],
+				description: 'Input field names to copy over to the new items',
 				displayOptions: {
 					show: {
 						resource: [
@@ -684,9 +652,10 @@ return 0;`,
 
 							if (include === 'selectedOtherFields') {
 
-								const fieldsToInclude = (this.getNodeParameter('fieldsToInclude', i) as string).split(',').map(field => field.trim());
+								const fieldsToInclude = this.getNodeParameter('fieldsToInclude', i) as string[];
 
-								//if array the array to split is withim an object, and has other properties
+								//if the array to split is withim an object, and has other properties
+								// add the whole object as a field to add
 								if (fieldToSplitOut.includes('.') && allowDotNotation) {
 									fieldsToInclude.push(fieldToSplitOut.split('.')[0]);
 								}
